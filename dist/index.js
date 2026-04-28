@@ -6,7 +6,7 @@ import postgres from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { createUser, deleteAllUsers } from "./db/queries/users.js";
-import { createChirp } from "./db/queries/chirps.js";
+import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById } from "./db/queries/chirps.js";
 import { DrizzleQueryError } from "drizzle-orm";
 process.loadEnvFile();
 envOrThrow();
@@ -32,7 +32,7 @@ const handlerMetricsDisplay = (req, res) => {
 };
 const handlerMetricsReset = async (req, res) => {
     config.api.fileserverHits = 0;
-    console.log("PLATFORM:", JSON.stringify(process.env.platform));
+    console.log("PLATFORM:", JSON.stringify(process.env.PLATFORM));
     if (config.api.platform !== "dev") {
         res.status(403).send("Forbidden");
     }
@@ -68,6 +68,25 @@ const handlerChirps = async (req, res, next) => {
         next(err);
     }
 };
+const handlerChirpsAll = async (req, res, next) => {
+    try {
+        const chirps = await getAllChirpsOrderedbyCreatedAt();
+        res.status(200).json(chirps);
+    }
+    catch (err) {
+        next(err);
+    }
+};
+const handlerChirpsOne = async (req, res, next) => {
+    try {
+        const chirpId = req.params['chirpId'];
+        const chirp = await getChirpById(chirpId);
+        res.status(200).json(chirp);
+    }
+    catch (err) {
+        next(err);
+    }
+};
 const handlerCreateUserForEmail = async (req, res, next) => {
     try {
         const newUser = await createUser({
@@ -89,6 +108,8 @@ const handlerCreateUserForEmail = async (req, res, next) => {
 app.get("/admin/metrics", handlerMetricsDisplay);
 app.post("/admin/reset", handlerMetricsReset);
 app.post("/api/users", handlerCreateUserForEmail);
+app.get("/api/chirps", handlerChirpsAll);
+app.get("/api/chirps/:chirpId", handlerChirpsOne);
 app.post("/api/chirps", handlerChirps);
 app.get("/api/healthz", handlerReadiness);
 app.use("/app", middlewareMetricsInc);

@@ -7,7 +7,7 @@ import postgres, { PostgresError } from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { createUser, deleteAllUsers } from "./db/queries/users.js";
-import { createChirp } from "./db/queries/chirps.js";
+import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById } from "./db/queries/chirps.js";
 import { DrizzleQueryError } from "drizzle-orm";
 
 process.loadEnvFile();
@@ -41,7 +41,7 @@ const handlerMetricsDisplay = (req: Request, res: Response) => {
 
 const handlerMetricsReset = async (req: Request, res: Response) => {
     config.api.fileserverHits = 0;
-    console.log("PLATFORM:", JSON.stringify(process.env.platform));
+    console.log("PLATFORM:", JSON.stringify(process.env.PLATFORM));
     if (config.api.platform !== "dev") {
         res.status(403).send("Forbidden");
     }
@@ -78,6 +78,25 @@ const handlerChirps = async (req: Request, res: Response, next: NextFunction) =>
     }
 };
 
+const handlerChirpsAll = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const chirps = await getAllChirpsOrderedbyCreatedAt();
+        res.status(200).json(chirps);
+    } catch (err) {
+        next(err);
+    }
+};
+
+const handlerChirpsOne = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const chirpId = req.params['chirpId'];
+        const chirp = await getChirpById(chirpId as string);
+        res.status(200).json(chirp);
+    } catch (err) {
+        next(err);
+    }
+};
+
 const handlerCreateUserForEmail = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const newUser = await createUser({
@@ -99,6 +118,8 @@ const handlerCreateUserForEmail = async (req: Request, res: Response, next: Next
 app.get("/admin/metrics", handlerMetricsDisplay)
 app.post("/admin/reset", handlerMetricsReset);
 app.post("/api/users", handlerCreateUserForEmail);
+app.get("/api/chirps", handlerChirpsAll);
+app.get("/api/chirps/:chirpId", handlerChirpsOne);
 app.post("/api/chirps", handlerChirps);
 
 app.get("/api/healthz", handlerReadiness);
