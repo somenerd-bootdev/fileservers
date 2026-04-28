@@ -1,21 +1,13 @@
-import express from "express";
-import { Request, Response, NextFunction } from "express";
+import express, { NextFunction } from "express";
+import { Request, Response } from "express";
 import { config, middlewareMetricsInc } from "./config.js"
+import { middlewareLogResponses, middlewareHandleErrors } from "./middleware.js";
 
 const app = express();
 app.use(express.json());
 
 const PORT = 8080;
 const bad_words = ["kerfuffle", "sharbert", "fornax"];
-
-const middlewareLogResponses = (req: Request, res: Response, next: NextFunction) => {
-    res.on("finish", () => {
-        if (res.statusCode != 200) {
-            console.log(`[NON-OK] ${req.method} ${req.url} - Status: ${res.statusCode}`)
-        }
-    });
-    next();
-}
 
 app.use(middlewareLogResponses);
 
@@ -39,23 +31,27 @@ const handlerMetricsReset = (req: Request, res: Response) => {
     res.send("OK");
 };
 
-const handlerValidateChirp = (req: Request, res: Response) => {
-    res.header("Content-Type", "application/json");
-    let body = req.body.body;
-    if (body.length <= 140) {
-        let body_parts = body.split(" ");
-        let index = 0;
-        for (let body_part of body_parts) {
-            if (bad_words.includes(body_part.toLowerCase())) {
-                body_parts[index] = "****";
+const handlerValidateChirp = (req: Request, res: Response, next: NextFunction) => {
+    try {
+        res.header("Content-Type", "application/json");
+        let body = req.body.body;
+        if (body.length <= 140) {
+            let body_parts = body.split(" ");
+            let index = 0;
+            for (let body_part of body_parts) {
+                if (bad_words.includes(body_part.toLowerCase())) {
+                    body_parts[index] = "****";
+                }
+                index++;
             }
-            index++;
+            body = body_parts.join(" ");
+            res.status(200).send(JSON.stringify({ "cleanedBody": body }));
         }
-        body = body_parts.join(" ");
-        res.status(200).send(JSON.stringify({ "cleanedBody": body }));
-    }
-    else {
-        res.status(400).send(JSON.stringify({ "error": "Chirp is too long" }));
+        else {
+            throw new Error("Chirp is too long");
+        }
+    } catch (err) {
+        next(err);
     }
 };
 
@@ -66,6 +62,7 @@ app.post("/api/validate_chirp", handlerValidateChirp);
 app.get("/api/healthz", handlerReadiness);
 
 app.use("/app", middlewareMetricsInc);
+app.use(middlewareHandleErrors);
 app.use("/app", express.static("./src/app"));
 
 app.listen(PORT, () => {
