@@ -37,7 +37,7 @@ const handlerMetricsReset = (req: Request, res: Response) => {
 };
 
 app.get("/admin/metrics", handlerMetricsDisplay)
-app.get("/admin/reset", handlerMetricsReset);
+app.post("/admin/reset", handlerMetricsReset);
 app.get("/api/healthz", handlerReadiness);
 
 app.use("/app", middlewareMetricsInc);
