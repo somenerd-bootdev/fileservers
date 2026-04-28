@@ -31,9 +31,9 @@ const handlerMetricsReset = (req: Request, res: Response) => {
     res.send("OK");
 };
 
-app.get("/metrics", handlerMetricsDisplay)
-app.get("/reset", handlerMetricsReset);
-app.get("/healthz", handlerReadiness);
+app.get("/api/metrics", handlerMetricsDisplay)
+app.get("/api/reset", handlerMetricsReset);
+app.get("/api/healthz", handlerReadiness);
 
 app.use("/app", middlewareMetricsInc);
 app.use("/app", express.static("./src/app"));
