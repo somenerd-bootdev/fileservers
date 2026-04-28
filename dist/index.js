@@ -6,6 +6,7 @@ import postgres from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { createUser, deleteAllUsers } from "./db/queries/users.js";
+import { createChirp } from "./db/queries/chirps.js";
 import { DrizzleQueryError } from "drizzle-orm";
 process.loadEnvFile();
 envOrThrow();
@@ -38,10 +39,11 @@ const handlerMetricsReset = async (req, res) => {
     await deleteAllUsers();
     res.status(200).send("OK");
 };
-const handlerValidateChirp = (req, res, next) => {
+const handlerChirps = async (req, res, next) => {
     try {
         res.header("Content-Type", "application/json");
         let body = req.body.body;
+        let userId = req.body.userId;
         if (body.length <= 140) {
             let body_parts = body.split(" ");
             let index = 0;
@@ -52,7 +54,11 @@ const handlerValidateChirp = (req, res, next) => {
                 index++;
             }
             body = body_parts.join(" ");
-            res.status(200).json({ "cleanedBody": body });
+            const newChirp = await createChirp({
+                body: body,
+                userId: userId,
+            });
+            res.status(201).json(newChirp);
         }
         else {
             throw new BadRequestError("Chirp is too long. Max length is 140");
@@ -82,8 +88,8 @@ const handlerCreateUserForEmail = async (req, res, next) => {
 };
 app.get("/admin/metrics", handlerMetricsDisplay);
 app.post("/admin/reset", handlerMetricsReset);
-app.post("/api/validate_chirp", handlerValidateChirp);
 app.post("/api/users", handlerCreateUserForEmail);
+app.post("/api/chirps", handlerChirps);
 app.get("/api/healthz", handlerReadiness);
 app.use("/app", middlewareMetricsInc);
 app.use(middlewareHandleErrors);
