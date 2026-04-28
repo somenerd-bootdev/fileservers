@@ -1,6 +1,7 @@
 import express from "express";
 import { config, middlewareMetricsInc } from "./config.js";
 const app = express();
+app.use(express.json());
 const PORT = 8080;
 const middlewareLogResponses = (req, res, next) => {
     res.on("finish", () => {
@@ -29,28 +30,13 @@ const handlerMetricsReset = (req, res) => {
     res.send("OK");
 };
 const handlerValidateChirp = (req, res) => {
-    let body = ""; // 1. Initialize
-    // 2. Listen for data events
-    req.on("data", (chunk) => {
-        body += chunk;
-    });
-    // 3. Listen for end events
-    req.on("end", () => {
-        try {
-            const parsedBody = JSON.parse(body);
-            // now you can use `parsedBody` as a JavaScript object
-            res.header("Content-Type", "application/json");
-            if (parsedBody.body.length <= 140) {
-                res.status(200).send(JSON.stringify({ "valid": true }));
-            }
-            else {
-                res.status(400).send(JSON.stringify({ "error": "Chirp is too long" }));
-            }
-        }
-        catch (error) {
-            res.status(400).send(JSON.stringify({ "error": "Something went wrong" }));
-        }
-    });
+    res.header("Content-Type", "application/json");
+    if (req.body.body.length <= 140) {
+        res.status(200).send(JSON.stringify({ "valid": true }));
+    }
+    else {
+        res.status(400).send(JSON.stringify({ "error": "Chirp is too long" }));
+    }
 };
 app.get("/admin/metrics", handlerMetricsDisplay);
 app.post("/admin/reset", handlerMetricsReset);
