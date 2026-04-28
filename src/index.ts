@@ -2,6 +2,16 @@ import express, { NextFunction } from "express";
 import { Request, Response } from "express";
 import { config, middlewareMetricsInc } from "./config.js"
 import { middlewareLogResponses, middlewareHandleErrors } from "./middleware.js";
+import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError } from "./customerrors.js"
+import postgres from "postgres";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { drizzle } from "drizzle-orm/postgres-js";
+
+process.loadEnvFile();
+envOrThrow();
+
+const migrationClient = postgres(config.db.url, { max: 1 });
+await migrate(drizzle(migrationClient), config.db.migrationConfig);
 
 const app = express();
 app.use(express.json());
@@ -21,13 +31,13 @@ const handlerMetricsDisplay = (req: Request, res: Response) => {
     res.end(`<html>
   <body>
     <h1>Welcome, Chirpy Admin</h1>
-    <p>Chirpy has been visited ${config.fileserverHits} times!</p>
+    <p>Chirpy has been visited ${config.api.fileserverHits} times!</p>
   </body>
 </html>`);
 };
 
 const handlerMetricsReset = (req: Request, res: Response) => {
-    config.fileserverHits = 0;
+    config.api.fileserverHits = 0;
     res.send("OK");
 };
 
@@ -48,7 +58,7 @@ const handlerValidateChirp = (req: Request, res: Response, next: NextFunction) =
             res.status(200).send(JSON.stringify({ "cleanedBody": body }));
         }
         else {
-            throw new Error("Chirp is too long");
+            throw new BadRequestError("Chirp is too long. Max length is 140");
         }
     } catch (err) {
         next(err);
@@ -68,3 +78,10 @@ app.use("/app", express.static("./src/app"));
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });
+
+
+function envOrThrow() {
+    if (process.env.DB_URL == undefined) {
+        throw new Error("Database URL is missing");
+    }
+}

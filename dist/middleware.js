@@ -1,3 +1,4 @@
+import { BadRequestError } from "./customerrors.js";
 export const middlewareLogResponses = (req, res, next) => {
     res.on("finish", () => {
         if (res.statusCode != 200) {
@@ -8,7 +9,14 @@ export const middlewareLogResponses = (req, res, next) => {
 };
 export const middlewareHandleErrors = (err, req, res, next) => {
     console.log(err);
-    res.status(500).json({
-        error: "Something went wrong on our end"
-    });
+    if (err instanceof BadRequestError) {
+        res.status(400).json({
+            error: err.message
+        });
+    }
+    else {
+        res.status(500).json({
+            error: "Something went wrong on our end"
+        });
+    }
 };

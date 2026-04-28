@@ -1,6 +1,8 @@
 import express from "express";
 import { config, middlewareMetricsInc } from "./config.js";
 import { middlewareLogResponses, middlewareHandleErrors } from "./middleware.js";
+import { BadRequestError } from "./customerrors.js";
+envOrThrow();
 const app = express();
 app.use(express.json());
 const PORT = 8080;
@@ -40,7 +42,7 @@ const handlerValidateChirp = (req, res, next) => {
             res.status(200).send(JSON.stringify({ "cleanedBody": body }));
         }
         else {
-            throw new Error("Chirp is too long");
+            throw new BadRequestError("Chirp is too long. Max length is 140");
         }
     }
     catch (err) {
@@ -57,3 +59,8 @@ app.use("/app", express.static("./src/app"));
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });
+function envOrThrow() {
+    if (process.env.DB_URL == undefined) {
+        throw new Error("Database URL is missing");
+    }
+}
