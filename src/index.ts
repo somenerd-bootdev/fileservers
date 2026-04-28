@@ -3,9 +3,11 @@ import { Request, Response } from "express";
 import { config, middlewareMetricsInc } from "./config.js"
 import { middlewareLogResponses, middlewareHandleErrors } from "./middleware.js";
 import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError } from "./customerrors.js"
-import postgres from "postgres";
+import postgres, { PostgresError } from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
+import { createUser, deleteAllUsers } from "./db/queries/users.js";
+import { DrizzleQueryError } from "drizzle-orm";
 
 process.loadEnvFile();
 envOrThrow();
@@ -36,9 +38,14 @@ const handlerMetricsDisplay = (req: Request, res: Response) => {
 </html>`);
 };
 
-const handlerMetricsReset = (req: Request, res: Response) => {
+const handlerMetricsReset = async (req: Request, res: Response) => {
     config.api.fileserverHits = 0;
-    res.send("OK");
+    console.log("PLATFORM:", JSON.stringify(process.env.platform));
+    if (config.api.platform !== "dev") {
+        res.status(403).send("Forbidden");
+    }
+    await deleteAllUsers();
+    res.status(200).send("OK");
 };
 
 const handlerValidateChirp = (req: Request, res: Response, next: NextFunction) => {
@@ -55,7 +62,7 @@ const handlerValidateChirp = (req: Request, res: Response, next: NextFunction) =
                 index++;
             }
             body = body_parts.join(" ");
-            res.status(200).send(JSON.stringify({ "cleanedBody": body }));
+            res.status(200).json({ "cleanedBody": body });
         }
         else {
             throw new BadRequestError("Chirp is too long. Max length is 140");
@@ -65,9 +72,28 @@ const handlerValidateChirp = (req: Request, res: Response, next: NextFunction) =
     }
 };
 
+const handlerCreateUserForEmail = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const newUser = await createUser({
+            email: req.body.email
+        });
+        res.status(201).json(newUser);
+    } catch (err) {
+        if (err instanceof DrizzleQueryError) {
+            const cause = err.cause as { code?: string } | undefined;
+            if (cause?.code === "23505") {
+                res.status(409).send(`User already exists for email: ${req.body.email}`);
+                return;
+            }
+        }
+        next(err);
+    }
+};
+
 app.get("/admin/metrics", handlerMetricsDisplay)
 app.post("/admin/reset", handlerMetricsReset);
 app.post("/api/validate_chirp", handlerValidateChirp);
+app.post("/api/users", handlerCreateUserForEmail);
 
 app.get("/api/healthz", handlerReadiness);
 

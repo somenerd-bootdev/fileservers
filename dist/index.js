@@ -2,7 +2,15 @@ import express from "express";
 import { config, middlewareMetricsInc } from "./config.js";
 import { middlewareLogResponses, middlewareHandleErrors } from "./middleware.js";
 import { BadRequestError } from "./customerrors.js";
+import postgres from "postgres";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { drizzle } from "drizzle-orm/postgres-js";
+import { createUser, deleteAllUsers } from "./db/queries/users.js";
+import { DrizzleQueryError } from "drizzle-orm";
+process.loadEnvFile();
 envOrThrow();
+const migrationClient = postgres(config.db.url, { max: 1 });
+await migrate(drizzle(migrationClient), config.db.migrationConfig);
 const app = express();
 app.use(express.json());
 const PORT = 8080;
@@ -17,13 +25,18 @@ const handlerMetricsDisplay = (req, res) => {
     res.end(`<html>
   <body>
     <h1>Welcome, Chirpy Admin</h1>
-    <p>Chirpy has been visited ${config.fileserverHits} times!</p>
+    <p>Chirpy has been visited ${config.api.fileserverHits} times!</p>
   </body>
 </html>`);
 };
-const handlerMetricsReset = (req, res) => {
-    config.fileserverHits = 0;
-    res.send("OK");
+const handlerMetricsReset = async (req, res) => {
+    config.api.fileserverHits = 0;
+    console.log("PLATFORM:", JSON.stringify(process.env.platform));
+    if (config.api.platform !== "dev") {
+        res.status(403).send("Forbidden");
+    }
+    await deleteAllUsers();
+    res.status(200).send("OK");
 };
 const handlerValidateChirp = (req, res, next) => {
     try {
@@ -39,7 +52,7 @@ const handlerValidateChirp = (req, res, next) => {
                 index++;
             }
             body = body_parts.join(" ");
-            res.status(200).send(JSON.stringify({ "cleanedBody": body }));
+            res.status(200).json({ "cleanedBody": body });
         }
         else {
             throw new BadRequestError("Chirp is too long. Max length is 140");
@@ -49,9 +62,28 @@ const handlerValidateChirp = (req, res, next) => {
         next(err);
     }
 };
+const handlerCreateUserForEmail = async (req, res, next) => {
+    try {
+        const newUser = await createUser({
+            email: req.body.email
+        });
+        res.status(201).json(newUser);
+    }
+    catch (err) {
+        if (err instanceof DrizzleQueryError) {
+            const cause = err.cause;
+            if (cause?.code === "23505") {
+                res.status(409).send(`User already exists for email: ${req.body.email}`);
+                return;
+            }
+        }
+        next(err);
+    }
+};
 app.get("/admin/metrics", handlerMetricsDisplay);
 app.post("/admin/reset", handlerMetricsReset);
 app.post("/api/validate_chirp", handlerValidateChirp);
+app.post("/api/users", handlerCreateUserForEmail);
 app.get("/api/healthz", handlerReadiness);
 app.use("/app", middlewareMetricsInc);
 app.use(middlewareHandleErrors);

@@ -1,9 +1,20 @@
 process.loadEnvFile();
-export const config = {
+const migrationConfig = {
+    migrationsFolder: "./src/db/migrations",
+};
+const dbConfig = {
+    migrationConfig: migrationConfig,
+    url: process.env.DB_URL || ''
+};
+const apiConfig = {
     fileserverHits: 0,
-    dbURL: process.env.DB_URL || ''
+    platform: process.env.PLATFORM || ''
+};
+export const config = {
+    db: dbConfig,
+    api: apiConfig
 };
 export function middlewareMetricsInc(req, res, next) {
-    config.fileserverHits++;
+    config.api.fileserverHits++;
     next();
 }
