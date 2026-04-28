@@ -1,4 +1,5 @@
 import express from "express";
+import { config, middlewareMetricsInc } from "./config.js";
 const app = express();
 const PORT = 8080;
 const middlewareLogResponses = (req, res, next) => {
@@ -10,12 +11,23 @@ const middlewareLogResponses = (req, res, next) => {
     next();
 };
 app.use(middlewareLogResponses);
-app.use("/app", express.static("./src/app"));
 const handlerReadiness = (req, res) => {
     res.set("Content-Type", "text/plain; charset=utf-8");
     res.send("OK");
 };
-app.get("/healthz", middlewareLogResponses, handlerReadiness);
+const handlerMetricsDisplay = (req, res) => {
+    res.set("Content-Type", "text/plain; charset=utf-8");
+    res.send(`Hits: ${config.fileserverHits}`);
+};
+const handlerMetricsReset = (req, res) => {
+    config.fileserverHits = 0;
+    res.send("OK");
+};
+app.get("/metrics", handlerMetricsDisplay);
+app.get("/reset", handlerMetricsReset);
+app.get("/healthz", handlerReadiness);
+app.use("/app", middlewareMetricsInc);
+app.use("/app", express.static("./src/app"));
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });
