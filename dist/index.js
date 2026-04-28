@@ -16,15 +16,20 @@ const handlerReadiness = (req, res) => {
     res.send("OK");
 };
 const handlerMetricsDisplay = (req, res) => {
-    res.set("Content-Type", "text/plain; charset=utf-8");
-    res.send(`Hits: ${config.fileserverHits}`);
+    res.set("Content-Type", "text/html; charset=utf-8");
+    res.end(`<html>
+  <body>
+    <h1>Welcome, Chirpy Admin</h1>
+    <p>Chirpy has been visited ${config.fileserverHits} times!</p>
+  </body>
+</html>`);
 };
 const handlerMetricsReset = (req, res) => {
     config.fileserverHits = 0;
     res.send("OK");
 };
-app.get("/api/metrics", handlerMetricsDisplay);
-app.get("/api/reset", handlerMetricsReset);
+app.get("/admin/metrics", handlerMetricsDisplay);
+app.get("/admin/reset", handlerMetricsReset);
 app.get("/api/healthz", handlerReadiness);
 app.use("/app", middlewareMetricsInc);
 app.use("/app", express.static("./src/app"));
