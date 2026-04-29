@@ -15,6 +15,13 @@
       "when": 1777412581004,
       "tag": "0001_orange_saracen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777427327428,
+      "tag": "0002_broken_marvex",
+      "breakpoints": true
     }
   ]
 }

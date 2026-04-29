@@ -1,13 +1,14 @@
 import express from "express";
 import { config, middlewareMetricsInc } from "./config.js";
 import { middlewareLogResponses, middlewareHandleErrors } from "./middleware.js";
-import { BadRequestError } from "./customerrors.js";
+import { BadRequestError, UnauthorizedError } from "./customerrors.js";
 import postgres from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { createUser, deleteAllUsers } from "./db/queries/users.js";
+import { createUser, deleteAllUsers, getUserByEmail } from "./db/queries/users.js";
 import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById } from "./db/queries/chirps.js";
 import { DrizzleQueryError } from "drizzle-orm";
+import { hashPassword, checkPasswordHash } from "./auth.js";
 process.loadEnvFile();
 envOrThrow();
 const migrationClient = postgres(config.db.url, { max: 1 });
@@ -89,10 +90,18 @@ const handlerChirpsOne = async (req, res, next) => {
 };
 const handlerCreateUserForEmail = async (req, res, next) => {
     try {
+        const password = req.body.password;
+        const hashedPassword = await hashPassword(password);
         const newUser = await createUser({
+            hashedPassword: hashedPassword,
             email: req.body.email
         });
-        res.status(201).json(newUser);
+        res.status(201).json({
+            email: newUser.email,
+            createdAt: newUser.createdAt,
+            updatedAt: newUser.updatedAt,
+            id: newUser.id
+        });
     }
     catch (err) {
         if (err instanceof DrizzleQueryError) {
@@ -105,12 +114,34 @@ const handlerCreateUserForEmail = async (req, res, next) => {
         next(err);
     }
 };
+const handlerLogin = async (req, res, next) => {
+    const password = req.body.password;
+    try {
+        const user = await getUserByEmail(req.body.email);
+        //console.log(user);
+        const match = await checkPasswordHash(user.hashedPassword, password);
+        if (!match) {
+            throw new UnauthorizedError("");
+        }
+        res.status(200).json({
+            id: user.id,
+            email: user.email,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
+        });
+    }
+    catch (err) {
+        //console.log(err);
+        res.status(401).send("incorrect email or password");
+    }
+};
 app.get("/admin/metrics", handlerMetricsDisplay);
 app.post("/admin/reset", handlerMetricsReset);
 app.post("/api/users", handlerCreateUserForEmail);
 app.get("/api/chirps", handlerChirpsAll);
 app.get("/api/chirps/:chirpId", handlerChirpsOne);
 app.post("/api/chirps", handlerChirps);
+app.post("/api/login", handlerLogin);
 app.get("/api/healthz", handlerReadiness);
 app.use("/app", middlewareMetricsInc);
 app.use(middlewareHandleErrors);
