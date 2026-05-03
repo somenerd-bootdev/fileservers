@@ -16,6 +16,10 @@ export const middlewareHandleErrors = (err: Error, req: Request, res: Response, 
         res.status(400).json({
             error: err.message
         });
+    } else if (err instanceof UnauthorizedError) {
+        res.status(401).json({
+            error: err.message
+        });
     }
     else {
         res.status(500).json({

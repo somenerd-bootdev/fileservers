@@ -1,4 +1,4 @@
-import { BadRequestError } from "./customerrors.js";
+import { BadRequestError, UnauthorizedError } from "./customerrors.js";
 export const middlewareLogResponses = (req, res, next) => {
     res.on("finish", () => {
         if (res.statusCode != 200) {
@@ -11,6 +11,11 @@ export const middlewareHandleErrors = (err, req, res, next) => {
     console.log(err);
     if (err instanceof BadRequestError) {
         res.status(400).json({
+            error: err.message
+        });
+    }
+    else if (err instanceof UnauthorizedError) {
+        res.status(401).json({
             error: err.message
         });
     }

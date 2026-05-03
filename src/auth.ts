@@ -1,6 +1,6 @@
 import argon2 from "argon2";
 import jwt, { JwtPayload } from "jsonwebtoken";
-import { stringify } from "node:querystring";
+import { Request, Response } from "express";
 import { isStringObject } from "node:util/types";
 
 type payload = Pick<JwtPayload, "iss" | "sub" | "iat" | "exp">;
@@ -27,15 +27,19 @@ export function makeJWT(userID: string, expiresIn: number, secret: string): stri
 }
 
 export function validateJWT(tokenString: string, secret: string): string {
-    try {
-        const output = jwt.verify(tokenString, secret);
-        if (isStringObject(output)) {
-            throw new Error("Token validation failed");
-        }
-        else {
-            return output.sub as string;
-        }
-    } catch (err) {
-        throw err;
+    const output = jwt.verify(tokenString, secret);
+    if (typeof output == "string") {
+        throw new Error("Token validation failed");
     }
+    else {
+        return output.sub as string;
+    }
+}
+
+export function getBearerToken(req: Request): string {
+    const authHeader = req.get("Authorization");
+    if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        throw new Error("Invalid Authorization header");
+    }
+    return authHeader.replace("Bearer ", "");
 }

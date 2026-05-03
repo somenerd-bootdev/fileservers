@@ -8,7 +8,8 @@ const dbConfig = {
 };
 const apiConfig = {
     fileserverHits: 0,
-    platform: process.env.PLATFORM || ''
+    platform: process.env.PLATFORM || '',
+    bearerSecret: process.env.BEARER_SECRET || ''
 };
 export const config = {
     db: dbConfig,

@@ -8,7 +8,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { createUser, deleteAllUsers, getUserByEmail } from "./db/queries/users.js";
 import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById } from "./db/queries/chirps.js";
 import { DrizzleQueryError } from "drizzle-orm";
-import { hashPassword, checkPasswordHash } from "./auth.js";
+import { hashPassword, checkPasswordHash, getBearerToken, validateJWT, makeJWT } from "./auth.js";
 process.loadEnvFile();
 envOrThrow();
 const migrationClient = postgres(config.db.url, { max: 1 });
@@ -44,7 +44,14 @@ const handlerChirps = async (req, res, next) => {
     try {
         res.header("Content-Type", "application/json");
         let body = req.body.body;
-        let userId = req.body.userId;
+        const token = getBearerToken(req);
+        let userId;
+        try {
+            userId = validateJWT(token, config.api.bearerSecret);
+        }
+        catch (errJWT) {
+            throw new UnauthorizedError("Expired or invalid token");
+        }
         if (body.length <= 140) {
             let body_parts = body.split(" ");
             let index = 0;
@@ -71,6 +78,8 @@ const handlerChirps = async (req, res, next) => {
 };
 const handlerChirpsAll = async (req, res, next) => {
     try {
+        const bearerToken = getBearerToken(req);
+        validateJWT(bearerToken, config.api.bearerSecret);
         const chirps = await getAllChirpsOrderedbyCreatedAt();
         res.status(200).json(chirps);
     }
@@ -114,12 +123,12 @@ const handlerCreateUserForEmail = async (req, res, next) => {
         next(err);
     }
 };
-const handlerLogin = async (req, res, next) => {
+const handlerLogin = async (req, res, _next) => {
     const password = req.body.password;
+    const expiresInSeconds = req.body.expiresInSeconds ?? 3600;
     try {
         const user = await getUserByEmail(req.body.email);
-        //console.log(user);
-        const match = await checkPasswordHash(user.hashedPassword, password);
+        const match = await checkPasswordHash(password, user.hashedPassword);
         if (!match) {
             throw new UnauthorizedError("");
         }
@@ -127,11 +136,12 @@ const handlerLogin = async (req, res, next) => {
             id: user.id,
             email: user.email,
             createdAt: user.createdAt,
-            updatedAt: user.updatedAt
+            updatedAt: user.updatedAt,
+            token: makeJWT(user.id, expiresInSeconds, config.api.bearerSecret)
         });
     }
     catch (err) {
-        //console.log(err);
+        console.log(err);
         res.status(401).send("incorrect email or password");
     }
 };
