@@ -128,7 +128,7 @@ const handlerLogin = async (req: Request, res: Response, next: NextFunction) => 
     const password = req.body.password;
     try {
         const user = await getUserByEmail(req.body.email);
-        const match = await checkPasswordHash(user.hashedPassword, password);
+        const match = await checkPasswordHash(password, user.hashedPassword);
         if (!match) {
             throw new UnauthorizedError("");
         }
