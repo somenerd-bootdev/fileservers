@@ -1,12 +1,12 @@
 import express from "express";
 import { config, middlewareMetricsInc } from "./config.js";
 import { middlewareLogResponses, middlewareHandleErrors } from "./middleware.js";
-import { BadRequestError, UnauthorizedError, NotFoundError } from "./customerrors.js";
+import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError } from "./customerrors.js";
 import postgres from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { createUser, deleteAllUsers, getUserByEmail, updateUser } from "./db/queries/users.js";
-import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById } from "./db/queries/chirps.js";
+import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById, deleteChirpById, getAuthorForChirpById } from "./db/queries/chirps.js";
 import { createRefreshToken, getUserFromRefreshToken, revokeRefreshToken } from "./db/queries/refreshtokens.js";
 import { DrizzleQueryError } from "drizzle-orm";
 import { hashPassword, checkPasswordHash, getBearerToken, validateJWT, makeJWT, makeRefreshToken } from "./auth.js";
@@ -92,7 +92,46 @@ const handlerChirpsOne = async (req, res, next) => {
     try {
         const chirpId = req.params['chirpId'];
         const chirp = await getChirpById(chirpId);
+        if (chirp == null) {
+            throw new NotFoundError("Requested chirp does not exist");
+        }
         res.status(200).json(chirp);
+    }
+    catch (err) {
+        next(err);
+    }
+};
+const handlerDeleteChirp = async (req, res, next) => {
+    try {
+        const bearerToken = getBearerToken(req);
+        let userId;
+        try {
+            userId = validateJWT(bearerToken, config.api.bearerSecret);
+        }
+        catch (errJWT) {
+            throw new UnauthorizedError("Expired or invalid token");
+        }
+        const chirpId = req.params['chirpId'];
+        let chirp;
+        try {
+            chirp = await getChirpById(chirpId);
+            console.log(chirp);
+        }
+        catch (errCheckExists) {
+            throw new NotFoundError("");
+        }
+        let authorId;
+        authorId = await getAuthorForChirpById(chirpId);
+        if (authorId.userId != userId) {
+            throw new ForbiddenError("");
+        }
+        try {
+            await deleteChirpById(chirpId);
+        }
+        catch (errDel) {
+            throw new NotFoundError("");
+        }
+        res.status(204).send();
     }
     catch (err) {
         next(err);
@@ -216,6 +255,7 @@ app.post("/api/users", handlerCreateUserForEmail);
 app.put("/api/users", handlerUpdateUser);
 app.get("/api/chirps", handlerChirpsAll);
 app.get("/api/chirps/:chirpId", handlerChirpsOne);
+app.delete("/api/chirps/:chirpId", handlerDeleteChirp);
 app.post("/api/chirps", handlerChirps);
 app.post("/api/login", handlerLogin);
 app.post("/api/revoke", handlerRevoke);
