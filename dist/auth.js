@@ -1,6 +1,7 @@
 import argon2 from "argon2";
 import jwt from "jsonwebtoken";
 import { randomBytes } from "crypto";
+import { UnauthorizedError } from "./customerrors.js";
 export async function hashPassword(password) {
     const result = await argon2.hash(password);
     return result;
@@ -31,7 +32,7 @@ export function validateJWT(tokenString, secret) {
 export function getBearerToken(req) {
     const authHeader = req.get("Authorization");
     if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-        throw new Error("Invalid Authorization header");
+        throw new UnauthorizedError("Invalid Authorization header");
     }
     return authHeader.replace("Bearer ", "");
 }

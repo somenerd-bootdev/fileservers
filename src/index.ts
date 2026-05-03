@@ -6,7 +6,7 @@ import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError } fro
 import postgres, { PostgresError } from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { createUser, deleteAllUsers, getUserByEmail } from "./db/queries/users.js";
+import { createUser, deleteAllUsers, getUserByEmail, updateUser } from "./db/queries/users.js";
 import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById } from "./db/queries/chirps.js";
 import { createRefreshToken, getUserFromRefreshToken, revokeRefreshToken } from "./db/queries/refreshtokens.js";
 import { DrizzleQueryError } from "drizzle-orm";
@@ -134,6 +134,35 @@ const handlerCreateUserForEmail = async (req: Request, res: Response, next: Next
     }
 };
 
+const handlerUpdateUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const bearerToken = getBearerToken(req);
+        let userId;
+        try {
+            userId = validateJWT(bearerToken, config.api.bearerSecret);
+        } catch (errJWT) {
+            throw new UnauthorizedError("Expired or invalid token");
+        }
+        const password = req.body.password;
+        const email = req.body.email;
+        const hashedPassword = await hashPassword(password);
+
+        const updatedUser = await updateUser({
+            hashedPassword: hashedPassword,
+            email: email,
+            id: userId
+        });
+        res.status(200).json({
+            email: updatedUser.email,
+            createdAt: updatedUser.createdAt,
+            updatedAt: updatedUser.updatedAt,
+            id: updatedUser.id
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 const handlerLogin = async (req: Request, res: Response, _next: NextFunction) => {
     try {
         const password = req.body.password;
@@ -144,7 +173,7 @@ const handlerLogin = async (req: Request, res: Response, _next: NextFunction) =>
         }
         const refreshTokenValue = makeRefreshToken();
         const refreshTokenExpiry = new Date(Date.now() + (60 * 24 * 60 * 60 * 1000));
-        const refreshToken = await createRefreshToken({
+        await createRefreshToken({
             token: refreshTokenValue,
             userId: user.id,
             expiresAt: refreshTokenExpiry
@@ -195,6 +224,7 @@ const handlerRevoke = async (req: Request, res: Response, _next: NextFunction) =
 app.get("/admin/metrics", handlerMetricsDisplay)
 app.post("/admin/reset", handlerMetricsReset);
 app.post("/api/users", handlerCreateUserForEmail);
+app.put("/api/users", handlerUpdateUser);
 app.get("/api/chirps", handlerChirpsAll);
 app.get("/api/chirps/:chirpId", handlerChirpsOne);
 app.post("/api/chirps", handlerChirps);

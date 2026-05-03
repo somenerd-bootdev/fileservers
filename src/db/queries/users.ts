@@ -22,3 +22,16 @@ export async function getUserByEmail(email: string) {
         .where(eq(users.email, email));
     return result;
 }
+
+export async function updateUser(user: NewUser) {
+    const [result] = await db
+        .update(users)
+        .set({
+            email: user.email,
+            hashedPassword: user.hashedPassword,
+            updatedAt: new Date(),
+        })
+        .where(eq(users.id, user.id || ""))
+        .returning();
+    return result;
+}
