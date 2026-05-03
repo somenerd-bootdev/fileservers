@@ -1,14 +1,15 @@
 import express from "express";
 import { config, middlewareMetricsInc } from "./config.js";
 import { middlewareLogResponses, middlewareHandleErrors } from "./middleware.js";
-import { BadRequestError, UnauthorizedError } from "./customerrors.js";
+import { BadRequestError, UnauthorizedError, NotFoundError } from "./customerrors.js";
 import postgres from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { createUser, deleteAllUsers, getUserByEmail } from "./db/queries/users.js";
 import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById } from "./db/queries/chirps.js";
+import { createRefreshToken, getUserFromRefreshToken, revokeRefreshToken } from "./db/queries/refreshtokens.js";
 import { DrizzleQueryError } from "drizzle-orm";
-import { hashPassword, checkPasswordHash, getBearerToken, validateJWT, makeJWT } from "./auth.js";
+import { hashPassword, checkPasswordHash, getBearerToken, validateJWT, makeJWT, makeRefreshToken } from "./auth.js";
 process.loadEnvFile();
 envOrThrow();
 const migrationClient = postgres(config.db.url, { max: 1 });
@@ -124,25 +125,60 @@ const handlerCreateUserForEmail = async (req, res, next) => {
     }
 };
 const handlerLogin = async (req, res, _next) => {
-    const password = req.body.password;
-    const expiresInSeconds = req.body.expiresInSeconds ?? 3600;
     try {
+        const password = req.body.password;
         const user = await getUserByEmail(req.body.email);
         const match = await checkPasswordHash(password, user.hashedPassword);
         if (!match) {
             throw new UnauthorizedError("");
         }
+        const refreshTokenValue = makeRefreshToken();
+        const refreshTokenExpiry = new Date(Date.now() + (60 * 24 * 60 * 60 * 1000));
+        const refreshToken = await createRefreshToken({
+            token: refreshTokenValue,
+            userId: user.id,
+            expiresAt: refreshTokenExpiry
+        });
         res.status(200).json({
             id: user.id,
             email: user.email,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
-            token: makeJWT(user.id, expiresInSeconds, config.api.bearerSecret)
+            token: makeJWT(user.id, 3600, config.api.bearerSecret),
+            refreshToken: refreshTokenValue
         });
     }
     catch (err) {
         console.log(err);
         res.status(401).send("incorrect email or password");
+    }
+};
+const handlerRefresh = async (req, res, _next) => {
+    try {
+        const bearerToken = getBearerToken(req);
+        const tokenUser = await getUserFromRefreshToken(bearerToken);
+        const newJWTToken = makeJWT(tokenUser.userId, 3600, config.api.bearerSecret);
+        res.status(200).json({
+            token: newJWTToken
+        });
+    }
+    catch (err) {
+        console.log(err);
+        res.status(401).send("Token invalid or does not exist");
+    }
+};
+const handlerRevoke = async (req, res, _next) => {
+    try {
+        const bearerToken = getBearerToken(req);
+        const revokeResult = await revokeRefreshToken(bearerToken);
+        if (revokeResult == null) {
+            throw new NotFoundError("Token invalid or does not exist");
+        }
+        res.status(204).send();
+    }
+    catch (err) {
+        console.log(err);
+        res.status(401).send("Token invalid or does not exist");
     }
 };
 app.get("/admin/metrics", handlerMetricsDisplay);
@@ -152,6 +188,8 @@ app.get("/api/chirps", handlerChirpsAll);
 app.get("/api/chirps/:chirpId", handlerChirpsOne);
 app.post("/api/chirps", handlerChirps);
 app.post("/api/login", handlerLogin);
+app.post("/api/revoke", handlerRevoke);
+app.post("/api/refresh", handlerRefresh);
 app.get("/api/healthz", handlerReadiness);
 app.use("/app", middlewareMetricsInc);
 app.use(middlewareHandleErrors);

@@ -1,7 +1,7 @@
 import argon2 from "argon2";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { Request, Response } from "express";
-import { isStringObject } from "node:util/types";
+import { randomBytes } from "crypto";
 
 type payload = Pick<JwtPayload, "iss" | "sub" | "iat" | "exp">;
 
@@ -42,4 +42,9 @@ export function getBearerToken(req: Request): string {
         throw new Error("Invalid Authorization header");
     }
     return authHeader.replace("Bearer ", "");
+}
+
+export function makeRefreshToken(): string {
+    const randomData = randomBytes(32);
+    return randomData.toString("hex");
 }

@@ -1,5 +1,6 @@
 import argon2 from "argon2";
 import jwt from "jsonwebtoken";
+import { randomBytes } from "crypto";
 export async function hashPassword(password) {
     const result = await argon2.hash(password);
     return result;
@@ -33,4 +34,8 @@ export function getBearerToken(req) {
         throw new Error("Invalid Authorization header");
     }
     return authHeader.replace("Bearer ", "");
+}
+export function makeRefreshToken() {
+    const randomData = randomBytes(32);
+    return randomData.toString("hex");
 }
