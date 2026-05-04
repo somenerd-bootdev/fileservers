@@ -7,7 +7,7 @@ import postgres, { PostgresError } from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { createUser, deleteAllUsers, getUserByEmail, getUserById, updateUser, upgradeUserToRed } from "./db/queries/users.js";
-import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById, deleteChirpById, getAuthorForChirpById } from "./db/queries/chirps.js";
+import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById, deleteChirpById, getAuthorForChirpById, getAllChirpsOrderedbyCreatedAtForAuthor } from "./db/queries/chirps.js";
 import { createRefreshToken, getUserFromRefreshToken, revokeRefreshToken } from "./db/queries/refreshtokens.js";
 import { DrizzleQueryError } from "drizzle-orm";
 import { hashPassword, checkPasswordHash, getBearerToken, validateJWT, makeJWT, makeRefreshToken, getAPIKey } from "./auth.js";
@@ -89,9 +89,13 @@ const handlerChirps = async (req: Request, res: Response, next: NextFunction) =>
 
 const handlerChirpsAll = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const bearerToken = getBearerToken(req);
-        validateJWT(bearerToken, config.api.bearerSecret);
-        const chirps = await getAllChirpsOrderedbyCreatedAt();
+        let chirps;
+        const authorIdQuery = req.query.authorId;
+        if (typeof authorIdQuery === "string") {
+            chirps = await getAllChirpsOrderedbyCreatedAtForAuthor(authorIdQuery)
+        } else {
+            chirps = await getAllChirpsOrderedbyCreatedAt();
+        }
         res.status(200).json(chirps);
     } catch (err) {
         next(err);
