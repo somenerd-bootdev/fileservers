@@ -40,3 +40,10 @@ export function makeRefreshToken() {
     const randomData = randomBytes(32);
     return randomData.toString("hex");
 }
+export function getAPIKey(req) {
+    const authHeader = req.get("Authorization");
+    if (authHeader == null || !authHeader.startsWith("ApiKey ")) {
+        throw new UnauthorizedError("Invalid Authorization header");
+    }
+    return authHeader.replace("ApiKey ", "");
+}

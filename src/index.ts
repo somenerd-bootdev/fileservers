@@ -10,7 +10,7 @@ import { createUser, deleteAllUsers, getUserByEmail, getUserById, updateUser, up
 import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById, deleteChirpById, getAuthorForChirpById } from "./db/queries/chirps.js";
 import { createRefreshToken, getUserFromRefreshToken, revokeRefreshToken } from "./db/queries/refreshtokens.js";
 import { DrizzleQueryError } from "drizzle-orm";
-import { hashPassword, checkPasswordHash, getBearerToken, validateJWT, makeJWT, makeRefreshToken } from "./auth.js";
+import { hashPassword, checkPasswordHash, getBearerToken, validateJWT, makeJWT, makeRefreshToken, getAPIKey } from "./auth.js";
 
 process.loadEnvFile();
 envOrThrow();
@@ -264,6 +264,10 @@ const handlerRevoke = async (req: Request, res: Response, _next: NextFunction) =
 
 const handlerWebhook = async (req: Request, res: Response, next: NextFunction) => {
     try {
+        const apiKey = getAPIKey(req);
+        if (apiKey != config.api.polkaKey) {
+            throw new BadRequestError("");
+        }
         const eventType = req.body.event;
         if (eventType != "user.upgraded") {
             res.status(204).send();

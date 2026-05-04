@@ -9,7 +9,8 @@ const dbConfig = {
 const apiConfig = {
     fileserverHits: 0,
     platform: process.env.PLATFORM || '',
-    bearerSecret: process.env.BEARER_SECRET || ''
+    bearerSecret: process.env.BEARER_SECRET || '',
+    polkaKey: process.env.POLKA_KEY || ''
 };
 export const config = {
     db: dbConfig,
