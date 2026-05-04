@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "../index.js";
 import { chirps } from "../schema.js";
-import { eq } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 export async function createChirp(chirp) {
     const [result] = await db
         .insert(chirps)
@@ -10,19 +10,34 @@ export async function createChirp(chirp) {
         .returning();
     return result;
 }
-export async function getAllChirpsOrderedbyCreatedAt() {
+export async function getAllChirpsOrderedbyCreatedAtASC() {
     const result = await db
         .select()
         .from(chirps)
-        .orderBy(sql `${chirps.createdAt} asc`);
+        .orderBy(asc(sql `${chirps.createdAt}`));
     return result;
 }
-export async function getAllChirpsOrderedbyCreatedAtForAuthor(authorId) {
+export async function getAllChirpsOrderedbyCreatedAtDESC() {
+    const result = await db
+        .select()
+        .from(chirps)
+        .orderBy(desc(sql `${chirps.createdAt}`));
+    return result;
+}
+export async function getAllChirpsOrderedbyCreatedAtForAuthorASC(authorId) {
     const result = await db
         .select()
         .from(chirps)
         .where(eq(chirps.userId, authorId))
-        .orderBy(sql `${chirps.createdAt} asc`);
+        .orderBy(asc(sql `${chirps.createdAt}`));
+    return result;
+}
+export async function getAllChirpsOrderedbyCreatedAtForAuthorDESC(authorId) {
+    const result = await db
+        .select()
+        .from(chirps)
+        .where(eq(chirps.userId, authorId))
+        .orderBy(desc(sql `${chirps.createdAt}`));
     return result;
 }
 export async function getChirpById(id) {

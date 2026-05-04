@@ -7,7 +7,7 @@ import postgres, { PostgresError } from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { createUser, deleteAllUsers, getUserByEmail, getUserById, updateUser, upgradeUserToRed } from "./db/queries/users.js";
-import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById, deleteChirpById, getAuthorForChirpById, getAllChirpsOrderedbyCreatedAtForAuthor } from "./db/queries/chirps.js";
+import { createChirp, getAllChirpsOrderedbyCreatedAtASC, getAllChirpsOrderedbyCreatedAtDESC, getChirpById, deleteChirpById, getAuthorForChirpById, getAllChirpsOrderedbyCreatedAtForAuthorDESC, getAllChirpsOrderedbyCreatedAtForAuthorASC } from "./db/queries/chirps.js";
 import { createRefreshToken, getUserFromRefreshToken, revokeRefreshToken } from "./db/queries/refreshtokens.js";
 import { DrizzleQueryError } from "drizzle-orm";
 import { hashPassword, checkPasswordHash, getBearerToken, validateJWT, makeJWT, makeRefreshToken, getAPIKey } from "./auth.js";
@@ -87,14 +87,26 @@ const handlerChirps = async (req: Request, res: Response, next: NextFunction) =>
     }
 };
 
+const allowedSorts = ["asc", "desc"];
 const handlerChirpsAll = async (req: Request, res: Response, next: NextFunction) => {
     try {
         let chirps;
+        let sortAsc = true;
+        const sortQuery = req.query.sort;
+        if (typeof sortQuery === "string") {
+            sortAsc = !(sortQuery == "desc");
+        }
         const authorIdQuery = req.query.authorId;
         if (typeof authorIdQuery === "string") {
-            chirps = await getAllChirpsOrderedbyCreatedAtForAuthor(authorIdQuery)
+            if (sortAsc)
+                chirps = await getAllChirpsOrderedbyCreatedAtForAuthorASC(authorIdQuery);
+            else
+                chirps = await getAllChirpsOrderedbyCreatedAtForAuthorDESC(authorIdQuery);
         } else {
-            chirps = await getAllChirpsOrderedbyCreatedAt();
+            if (sortAsc)
+                chirps = await getAllChirpsOrderedbyCreatedAtASC();
+            else
+                chirps = await getAllChirpsOrderedbyCreatedAtDESC();
         }
         res.status(200).json(chirps);
     } catch (err) {
