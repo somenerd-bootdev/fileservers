@@ -5,7 +5,7 @@ import { BadRequestError, UnauthorizedError, ForbiddenError, NotFoundError } fro
 import postgres from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { createUser, deleteAllUsers, getUserByEmail, updateUser } from "./db/queries/users.js";
+import { createUser, deleteAllUsers, getUserByEmail, getUserById, updateUser, upgradeUserToRed } from "./db/queries/users.js";
 import { createChirp, getAllChirpsOrderedbyCreatedAt, getChirpById, deleteChirpById, getAuthorForChirpById } from "./db/queries/chirps.js";
 import { createRefreshToken, getUserFromRefreshToken, revokeRefreshToken } from "./db/queries/refreshtokens.js";
 import { DrizzleQueryError } from "drizzle-orm";
@@ -149,7 +149,8 @@ const handlerCreateUserForEmail = async (req, res, next) => {
             email: newUser.email,
             createdAt: newUser.createdAt,
             updatedAt: newUser.updatedAt,
-            id: newUser.id
+            id: newUser.id,
+            isChirpyRed: newUser.isChirpyRed
         });
     }
     catch (err) {
@@ -185,7 +186,8 @@ const handlerUpdateUser = async (req, res, next) => {
             email: updatedUser.email,
             createdAt: updatedUser.createdAt,
             updatedAt: updatedUser.updatedAt,
-            id: updatedUser.id
+            id: updatedUser.id,
+            isChirpyRed: updatedUser.isChirpyRed
         });
     }
     catch (err) {
@@ -213,7 +215,8 @@ const handlerLogin = async (req, res, _next) => {
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
             token: makeJWT(user.id, 3600, config.api.bearerSecret),
-            refreshToken: refreshTokenValue
+            refreshToken: refreshTokenValue,
+            isChirpyRed: user.isChirpyRed
         });
     }
     catch (err) {
@@ -249,6 +252,34 @@ const handlerRevoke = async (req, res, _next) => {
         res.status(401).send("Token invalid or does not exist");
     }
 };
+const handlerWebhook = async (req, res, next) => {
+    try {
+        const eventType = req.body.event;
+        if (eventType != "user.upgraded") {
+            res.status(204).send();
+            return;
+        }
+        const userId = req.body.data.userId;
+        try {
+            let user = await getUserById(userId);
+            console.log(user);
+        }
+        catch (errCheckExists) {
+            throw new NotFoundError("");
+        }
+        try {
+            const upgradedUser = await upgradeUserToRed(userId);
+        }
+        catch (upgErr) {
+            res.status(404).send();
+            return;
+        }
+        res.status(204).send();
+    }
+    catch (err) {
+        next(err);
+    }
+};
 app.get("/admin/metrics", handlerMetricsDisplay);
 app.post("/admin/reset", handlerMetricsReset);
 app.post("/api/users", handlerCreateUserForEmail);
@@ -261,6 +292,7 @@ app.post("/api/login", handlerLogin);
 app.post("/api/revoke", handlerRevoke);
 app.post("/api/refresh", handlerRefresh);
 app.get("/api/healthz", handlerReadiness);
+app.post("/api/polka/webhooks", handlerWebhook);
 app.use("/app", middlewareMetricsInc);
 app.use(middlewareHandleErrors);
 app.use("/app", express.static("./src/app"));

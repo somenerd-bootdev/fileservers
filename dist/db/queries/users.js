@@ -19,6 +19,13 @@ export async function getUserByEmail(email) {
         .where(eq(users.email, email));
     return result;
 }
+export async function getUserById(userId) {
+    const [result] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId));
+    return result;
+}
 export async function updateUser(user) {
     const [result] = await db
         .update(users)
@@ -28,6 +35,16 @@ export async function updateUser(user) {
         updatedAt: new Date(),
     })
         .where(eq(users.id, user.id || ""))
+        .returning();
+    return result;
+}
+export async function upgradeUserToRed(userId) {
+    const [result] = await db
+        .update(users)
+        .set({
+        isChirpyRed: true
+    })
+        .where(eq(users.id, userId))
         .returning();
     return result;
 }
